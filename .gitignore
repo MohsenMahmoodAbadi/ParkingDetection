@@ -1,0 +1,40 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+.venv311/
+env/
+ENV/
+
+# macOS
+.DS_Store
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+media/
+staticfiles/
+
+# Editor directories
+.vscode/
+.idea/
+
+# Model / large files (do not commit large model files)
+yolov8n.pt
+*.pt
+
+# Byte-compiled / caches
+*.egg-info/
+dist/
+build/
+
+# Coverage
+.coverage
+htmlcov/
+
+# others
+*.pyc
