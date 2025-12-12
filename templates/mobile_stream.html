@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#4CAF50">
+    <title>🚗 سیستم تشخیص پارکینگ هوشمند</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Tahoma, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: white;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .status-bar {
+            display: flex;
+            justify-content: space-around;
+            background: rgba(0,0,0,0.2);
+            padding: 15px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .status-item {
+            text-align: center;
+        }
+        
+        .status-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        
+        .status-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .video-container {
+            position: relative;
+            width: 100%;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            background: #000;
+        }
+        
+        #localVideo {
+            width: 100%;
+            height: auto;
+            border-radius: 15px;
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .btn:active {
+            transform: scale(0.98);
+        }
+        
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .connection-status {
+            padding: 12px;
+            border-radius: 10px;
+            text-align: center;
+            margin-top: 20px;
+            font-weight: bold;
+        }
+        
+        .connected {
+            background: rgba(76, 175, 80, 0.3);
+            border: 2px solid #4CAF50;
+        }
+        
+        .disconnected {
+            background: rgba(244, 67, 54, 0.3);
+            border: 2px solid #f44336;
+        }
+        
+        .log {
+            background: rgba(0,0,0,0.2);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 0.9rem;
+            font-family: monospace;
+        }
+        
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.5rem;
+            }
+            
+            .btn {
+                padding: 12px;
+                font-size: 0.9rem;
+            }
+            
+            .status-value {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚗 سیستم تشخیص پارکینگ هوشمند</h1>
+            <p>اتصال زنده دوربین موبایل</p>
+        </header>
+        
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-value" id="vehicleCount">0</div>
+                <div class="status-label">تعداد خودرو</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="fpsCounter">0</div>
+                <div class="status-label">FPS</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="latency">0</div>
+                <div class="status-label">تأخیر (ms)</div>
+            </div>
+        </div>
+        
+        <div class="video-container">
+            <video id="localVideo" autoplay playsinline muted></video>
+            <canvas id="processedCanvas" style="display: none;"></canvas>
+        </div>
+        
+        <div class="controls">
+            <button class="btn btn-primary" onclick="startCamera()" id="startBtn">
+                📷 شروع دوربین
+            </button>
+            <button class="btn btn-danger" onclick="stopCamera()" id="stopBtn" disabled>
+                ⏸️ توقف دوربین
+            </button>
+            <button class="btn btn-secondary" onclick="toggleStream()" id="streamBtn" disabled>
+                🔄 شروع ارسال
+            </button>
+            <button class="btn btn-secondary" onclick="location.reload()">
+                🔃 بازخوانی
+            </button>
+        </div>
+        
+        <div class="connection-status disconnected" id="connectionStatus">
+            🔴 در حال اتصال به سرور...
+        </div>
+        
+        <div class="log" id="logContainer">
+            <div>📝 منتظر اتصال...</div>
+        </div>
+    </div>
+
+    <script>
+        
+        let mediaStream = null;
+        let websocket = null;
+        let isStreaming = false;
+        let frameCounter = 0;
+        let fpsTimer = null;
+        
+        
+        const wsUrl = '{{ ws_url }}';
+        
+        
+        const localVideo = document.getElementById('localVideo');
+        const processedCanvas = document.getElementById('processedCanvas');
+        const ctx = processedCanvas.getContext('2d');
+        const vehicleCountEl = document.getElementById('vehicleCount');
+        const fpsCounterEl = document.getElementById('fpsCounter');
+        const latencyEl = document.getElementById('latency');
+        const connectionStatusEl = document.getElementById('connectionStatus');
+        const logContainer = document.getElementById('logContainer');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const streamBtn = document.getElementById('streamBtn');
+        
+       
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#ff6b6b' : 
+                         type === 'success' ? '#51cf66' : 
+                         type === 'warning' ? '#ffd43b' : '#ffffff';
+            
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<span style="color: #adb5bd">[${timestamp}]</span> <span style="color: ${color}">${message}</span>`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+           
+            if (logContainer.children.length > 10) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+            
+            console.log(`[${type}] ${message}`);
+        }
+        
+        
+        function connectWebSocket() {
+            log('در حال اتصال به سرور...', 'info');
+            
+            try {
+                websocket = new WebSocket(wsUrl);
+                
+                websocket.onopen = function() {
+                    log('✅ متصل به سرور', 'success');
+                    updateConnectionStatus(true);
+                    streamBtn.disabled = false;
+                };
+                
+                websocket.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleServerMessage(data);
+                    } catch (e) {
+                        log(`❌ خطا در پردازش پیام: ${e}`, 'error');
+                    }
+                };
+                
+                websocket.onerror = function(error) {
+                    log(`❌ خطای اتصال: ${error}`, 'error');
+                    updateConnectionStatus(false);
+                };
+                
+                websocket.onclose = function() {
+                    log('🔌 اتصال قطع شد', 'warning');
+                    updateConnectionStatus(false);
+                    streamBtn.disabled = true;
+                    isStreaming = false;
+                    updateStreamButton();
+                    
+                    
+                    setTimeout(connectWebSocket, 3000);
+                };
+                
+            } catch (error) {
+                log(`❌ خطا در ایجاد اتصال: ${error}`, 'error');
+            }
+        }
+        
+        
+        function handleServerMessage(data) {
+            switch (data.type) {
+                case 'connection_established':
+                    log(`سرور: ${data.message}`, 'success');
+                    break;
+                    
+                case 'detection_result':
+                    
+                    vehicleCountEl.textContent = data.count;
+                    
+                     
+                    if (data.timestamp) {
+                        const now = new Date();
+                        const serverTime = new Date(data.timestamp);
+                        const latency = now - serverTime;
+                        latencyEl.textContent = latency;
+                    }
+                    
+                      
+                    if (data.count > 0) {
+                        log(`🚗 ${data.count} خودرو تشخیص داده شد`, 'success');
+                    }
+                    break;
+                    
+                case 'error':
+                    log(`❌ خطای سرور: ${data.message}`, 'error');
+                    break;
+                    
+                case 'pong':
+                    log('🏓 سرور پاسخ داد', 'info');
+                    break;
+                    
+                default:
+                    log(`📨 پیام ناشناخته: ${data.type}`, 'warning');
+            }
+        }
+        
+
+        function updateConnectionStatus(connected) {
+            if (connected) {
+                connectionStatusEl.textContent = '🟢 متصل به سرور';
+                connectionStatusEl.className = 'connection-status connected';
+            } else {
+                connectionStatusEl.textContent = '🔴 قطع از سرور';
+                connectionStatusEl.className = 'connection-status disconnected';
+            }
+        }
+        
+
+        async function startCamera() {
+            try {
+                log('درخواست دسترسی به دوربین...', 'info');
+                
+
+                const constraints = {
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'environment',  
+                        frameRate: { ideal: 30 }
+                    },
+                    audio: false
+                };
+                
+               
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                localVideo.srcObject = mediaStream;
+                
+                
+                localVideo.onloadedmetadata = () => {
+                    processedCanvas.width = localVideo.videoWidth;
+                    processedCanvas.height = localVideo.videoHeight;
+                    log(`📐 اندازه تصویر: ${localVideo.videoWidth}x${localVideo.videoHeight}`, 'success');
+                };
+                
+               
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                streamBtn.disabled = false;
+                
+                log('✅ دوربین فعال شد', 'success');
+                
+            } catch (error) {
+                log(`❌ خطای دوربین: ${error.message}`, 'error');
+                alert('خطا در دسترسی به دوربین:\n' + error.message);
+            }
+        }
+        
+       
+        function stopCamera() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+                localVideo.srcObject = null;
+                
+               
+                isStreaming = false;
+                stopFrameSending();
+                
+               
+                vehicleCountEl.textContent = '0';
+                fpsCounterEl.textContent = '0';
+                latencyEl.textContent = '0';
+                
+                
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                streamBtn.disabled = true;
+                
+                log('دوربین متوقف شد', 'warning');
+            }
+        }
+        
+        
+        function toggleStream() {
+            isStreaming = !isStreaming;
+            updateStreamButton();
+            
+            if (isStreaming) {
+                startFrameSending();
+            } else {
+                stopFrameSending();
+            }
+        }
+        
+       
+        function updateStreamButton() {
+            if (isStreaming) {
+                streamBtn.innerHTML = '⏸️ توقف ارسال';
+                streamBtn.classList.remove('btn-secondary');
+                streamBtn.classList.add('btn-danger');
+            } else {
+                streamBtn.innerHTML = '🔄 شروع ارسال';
+                streamBtn.classList.remove('btn-danger');
+                streamBtn.classList.add('btn-secondary');
+            }
+        }
+        
+        
+        function startFrameSending() {
+            if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+                log('❌ ابتدا به سرور متصل شوید', 'error');
+                isStreaming = false;
+                updateStreamButton();
+                return;
+            }
+            
+            
+            fpsTimer = setInterval(() => {
+                fpsCounterEl.textContent = frameCounter;
+                frameCounter = 0;
+            }, 1000);
+            
+            log('🎬 شروع ارسال فریم‌ها', 'success');
+            sendFrame();
+        }
+        
+        
+        function stopFrameSending() {
+            if (fpsTimer) {
+                clearInterval(fpsTimer);
+                fpsTimer = null;
+            }
+            frameCounter = 0;
+            log('⏹️ توقف ارسال فریم‌ها', 'warning');
+        }
+        
+        
+        function sendFrame() {
+            if (!isStreaming || !mediaStream || !websocket || websocket.readyState !== WebSocket.OPEN) {
+                return;
+            }
+            
+            try {
+                
+                if (!localVideo.videoWidth || !localVideo.videoHeight) {
+                    setTimeout(sendFrame, 100);
+                    return;
+                }
+                
+                
+                if (processedCanvas.width !== localVideo.videoWidth || 
+                    processedCanvas.height !== localVideo.videoHeight) {
+                    processedCanvas.width = localVideo.videoWidth;
+                    processedCanvas.height = localVideo.videoHeight;
+                }
+                
+                
+                ctx.drawImage(localVideo, 0, 0, processedCanvas.width, processedCanvas.height);
+                
+                
+                const frameData = processedCanvas.toDataURL('image/jpeg', 0.5);
+                
+                  
+                websocket.send(JSON.stringify({
+                    type: 'video_frame',
+                    frame: frameData,
+                    timestamp: Date.now(),
+                    annotate: true
+                }));
+                
+                frameCounter++;
+                
+                
+                setTimeout(sendFrame, 200); 
+                
+            } catch (error) {
+                log(`❌ خطا در ارسال فریم: ${error}`, 'error');
+                isStreaming = false;
+                updateStreamButton();
+                stopFrameSending();
+            }
+        }
+        
+        
+        function pingServer() {
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                websocket.send(JSON.stringify({
+                    type: 'ping',
+                    timestamp: Date.now()
+                }));
+            }
+        }
+        
+        
+        window.onload = function() {
+            log('صفحه بارگذاری شد', 'info');
+            connectWebSocket();
+            
+            
+            setInterval(pingServer, 10000);
+            
+            
+            window.addEventListener('beforeunload', () => {
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                }
+                if (websocket) {
+                    websocket.close();
+                }
+            });
+        };
+    </script>
+</body>
+</html>

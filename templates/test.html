@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Page</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        button { padding: 10px 20px; margin: 5px; }
+        video { width: 320px; height: 240px; border: 2px solid #333; }
+        .log { background: #f0f0f0; padding: 10px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket + Camera Test</h1>
+    
+    <video id="video" autoplay playsinline></video>
+    <br>
+    <button onclick="startCamera()">Start Camera</button>
+    <button onclick="sendTest()">Send Test Frame</button>
+    
+    <div class="log" id="log"></div>
+    
+    <script>
+        let ws = null;
+        let stream = null;
+        
+        
+        function connectWS() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws/video/stream/`);
+            
+            ws.onopen = () => log('✅ Connected');
+            ws.onmessage = (e) => log('📩 ' + e.data);
+            ws.onerror = (e) => log('❌ Error');
+            ws.onclose = () => log('📴 Closed');
+        }
+        
+       
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                document.getElementById('video').srcObject = stream;
+                log('✅ Camera on');
+            } catch (e) {
+                log('❌ Camera error: ' + e.message);
+            }
+        }
+        
+        
+        function sendTest() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('❌ Not connected');
+                return;
+            }
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = 320;
+            canvas.height = 240;
+            const ctx = canvas.getContext('2d');
+            
+               
+            ctx.fillStyle = '#FF0000';
+            ctx.fillRect(0, 0, 320, 240);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '30px Arial';
+            ctx.fillText('TEST', 120, 120);
+            
+            const dataUrl = canvas.toDataURL('image/jpeg');
+            
+            ws.send(JSON.stringify({
+                type: 'video_frame',
+                frame: dataUrl,
+                timestamp: Date.now()
+            }));
+            
+            log('📤 Sent test frame');
+        }
+        
+        
+        function log(msg) {
+            const div = document.getElementById('log');
+            div.innerHTML = new Date().toLocaleTimeString() + ': ' + msg + '<br>' + div.innerHTML;
+            console.log(msg);
+        }
+        
+       
+        window.onload = () => {
+            connectWS();
+        };
+    </script>
+</body>
+</html>
