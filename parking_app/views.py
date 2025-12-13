@@ -19,7 +19,3 @@ def mobile_stream(request):
         'ws_url': f'ws://{request.get_host()}/ws/video/stream/'
     }
     return render(request, 'mobile_stream.html', context)
-
-def test_page(request):
-    """صفحه تست ساده"""
-    return render(request, 'test.html')

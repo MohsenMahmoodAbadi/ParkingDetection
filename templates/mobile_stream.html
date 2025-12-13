@@ -4,17 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#4CAF50">
-    <title>🚗 سیستم تشخیص پارکینگ هوشمند</title>
+    <title> سیستم شمارش خودروهای موجود در پارکینگ</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: Tahoma, sans-serif;
+            font-family: Vazir;
+
         }
         
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #b3bbdd 0%, #bab6ea 100%);
             min-height: 100vh;
             padding: 20px;
             color: white;
@@ -23,11 +24,11 @@
         .container {
             max-width: 800px;
             margin: 0 auto;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(233, 226, 226, 0.1);
             backdrop-filter: blur(10px);
             border-radius: 20px;
             padding: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 8px 32px rgba(120, 108, 108, 0.3);
         }
         
         header {
@@ -173,8 +174,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>🚗 سیستم تشخیص پارکینگ هوشمند</h1>
-            <p>اتصال زنده دوربین موبایل</p>
+            <h1>سیستم شمارش خودروهای موجود در پارکینگ</h1>
         </header>
         
         <div class="status-bar">
@@ -199,16 +199,16 @@
         
         <div class="controls">
             <button class="btn btn-primary" onclick="startCamera()" id="startBtn">
-                📷 شروع دوربین
+                  اتصال دوربین
             </button>
             <button class="btn btn-danger" onclick="stopCamera()" id="stopBtn" disabled>
-                ⏸️ توقف دوربین
+                  قطع اتصال دوربین
             </button>
             <button class="btn btn-secondary" onclick="toggleStream()" id="streamBtn" disabled>
-                🔄 شروع ارسال
+                 شروع ارسال
             </button>
             <button class="btn btn-secondary" onclick="location.reload()">
-                🔃 بازخوانی
+                بارگزاری مجدد
             </button>
         </div>
         
@@ -217,7 +217,7 @@
         </div>
         
         <div class="log" id="logContainer">
-            <div>📝 منتظر اتصال...</div>
+            <div> منتظر اتصال...</div>
         </div>
     </div>
 
