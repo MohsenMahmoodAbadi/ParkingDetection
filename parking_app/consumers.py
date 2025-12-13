@@ -81,7 +81,10 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
                     'count': 0
                 }
             
-            results = []
+            # دریافت ابعاد اصلی تصویر
+            original_height, original_width = frame.shape[:2]
+            
+            vehicles = []
             count_car = 0
             
             if model:
@@ -93,20 +96,59 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
                     if boxes is not None:
                         for box in boxes:
                             class_id = int(box.cls[0])
-                            if class_id in [2, 5, 7]:  # خودروها
+                            # 2: car, 5: bus, 7: truck, 3: motorcycle
+                            if class_id in [2, 5, 7, 3]:  # وسایل نقلیه
                                 count_car += 1
                                 x1, y1, x2, y2 = box.xyxy[0].tolist()
                                 confidence = float(box.conf[0])
                                 
-                                results.append({
-                                    'class_id': class_id,
-                                    'confidence': round(confidence, 2),
-                                    'bbox': [int(x1), int(y1), int(x2), int(y2)]
+                                # محاسبه width و height
+                                width = x2 - x1
+                                height = y2 - y1
+                                
+                                # نام کلاس
+                                class_name = model.names[class_id]
+                                
+                                vehicles.append({
+                                    'x': x1,
+                                    'y': y1,
+                                    'width': width,
+                                    'height': height,
+                                    'confidence': confidence,
+                                    'class': class_name,
+                                    'class_id': class_id
                                 })
                 
                 # اگر درخواست آنوتیشن دارد
                 if data.get('annotate', False) and len(yolo_results) > 0:
-                    annotated_frame = yolo_results[0].plot()
+                    # ایجاد تصویر با مستطیل‌های رسم شده
+                    annotated_frame = frame.copy()
+                    
+                    # رسم مستطیل‌ها روی تصویر
+                    for vehicle in vehicles:
+                        x1, y1 = int(vehicle['x']), int(vehicle['y'])
+                        x2 = int(x1 + vehicle['width'])
+                        y2 = int(y1 + vehicle['height'])
+                        
+                        # انتخاب رنگ براساس کلاس
+                        if vehicle['class_id'] == 2:  # car
+                            color = (0, 255, 0)  # سبز
+                        elif vehicle['class_id'] == 5:  # bus
+                            color = (255, 0, 0)  # آبی
+                        elif vehicle['class_id'] == 7:  # truck
+                            color = (0, 0, 255)  # قرمز
+                        else:  # motorcycle
+                            color = (255, 255, 0)  # زرد
+                        
+                        # رسم مستطیل
+                        cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
+                        
+                        # نوشتن برچسب
+                        label = f"{vehicle['class']} {vehicle['confidence']:.2f}"
+                        cv2.putText(annotated_frame, label, (x1, y1 - 10),
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                    
+                    # کدگذاری تصویر به base64
                     _, buffer = cv2.imencode('.jpg', annotated_frame, 
                                             [cv2.IMWRITE_JPEG_QUALITY, 70])
                     frame_base64 = base64.b64encode(buffer).decode('utf-8')
@@ -118,9 +160,11 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
             return {
                 'type': 'detection_result',
                 'count': count_car,
-                'detections': results,
+                'vehicles': vehicles,  # لیست خودروهای تشخیص داده شده
+                'original_width': original_width,  # عرض تصویر اصلی
+                'original_height': original_height,  # ارتفاع تصویر اصلی
                 'timestamp': datetime.now().isoformat(),
-                'frame': frame_base64,
+                'frame': frame_base64,  # تصویر آنوتیت شده (اختیاری)
                 'message': f'Detected {count_car} vehicles'
             }
             

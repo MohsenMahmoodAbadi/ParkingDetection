@@ -4,14 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#4CAF50">
-    <title> سیستم شمارش خودروهای موجود در پارکینگ</title>
+    <title>سیستم شمارش خودروهای موجود در پارکینگ</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
             font-family: Vazir;
-
         }
         
         body {
@@ -58,7 +57,7 @@
         .status-value {
             font-size: 2rem;
             font-weight: bold;
-            color: #4CAF50;
+            color: #000000;
         }
         
         .status-label {
@@ -69,6 +68,7 @@
         .video-container {
             position: relative;
             width: 100%;
+            height: 450px;
             border-radius: 15px;
             overflow: hidden;
             margin-bottom: 20px;
@@ -77,8 +77,22 @@
         
         #localVideo {
             width: 100%;
-            height: auto;
+            height: 100%;
+            object-fit: cover;
             border-radius: 15px;
+        }
+        
+        #overlayCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+        
+        #processedCanvas {
+            display: none;
         }
         
         .controls {
@@ -155,6 +169,21 @@
             font-family: monospace;
         }
         
+        .detection-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 10px;
+        }
+        
+        .detection-item {
+            text-align: center;
+            padding: 5px;
+        }
+        
         @media (max-width: 600px) {
             h1 {
                 font-size: 1.5rem;
@@ -167,6 +196,10 @@
             
             .status-value {
                 font-size: 1.5rem;
+            }
+            
+            .video-container {
+                height: 300px;
             }
         }
     </style>
@@ -194,18 +227,23 @@
         
         <div class="video-container">
             <video id="localVideo" autoplay playsinline muted></video>
+            <canvas id="overlayCanvas"></canvas>
             <canvas id="processedCanvas" style="display: none;"></canvas>
+        </div>
+        
+        <div class="detection-stats" id="detectionStats">
+            <!-- آمار تشخیص به صورت داینامیک ساخته می‌شود -->
         </div>
         
         <div class="controls">
             <button class="btn btn-primary" onclick="startCamera()" id="startBtn">
-                  اتصال دوربین
+                اتصال دوربین
             </button>
             <button class="btn btn-danger" onclick="stopCamera()" id="stopBtn" disabled>
-                  قطع اتصال دوربین
+                قطع اتصال دوربین
             </button>
             <button class="btn btn-secondary" onclick="toggleStream()" id="streamBtn" disabled>
-                 شروع ارسال
+                شروع ارسال
             </button>
             <button class="btn btn-secondary" onclick="location.reload()">
                 بارگزاری مجدد
@@ -222,18 +260,17 @@
     </div>
 
     <script>
-        
         let mediaStream = null;
         let websocket = null;
         let isStreaming = false;
         let frameCounter = 0;
         let fpsTimer = null;
+        let detectedVehicles = [];
+        let overlayCanvas, overlayCtx;
         
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.hostname === '0.0.0.0' ? 'localhost' : window.location.hostname;   
-        const wsUrl = `${protocol}//${host}:${window.location.port || 8000}/ws/video/stream/`;
-        
-        
+        const wsUrl = `${protocol}//${host}:8000/ws/video/stream/`;
         
         const localVideo = document.getElementById('localVideo');
         const processedCanvas = document.getElementById('processedCanvas');
@@ -246,8 +283,14 @@
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
         const streamBtn = document.getElementById('streamBtn');
+        const detectionStatsEl = document.getElementById('detectionStats');
         
-       
+        // تعریف رنگ‌های مختلف برای خودروها
+        const vehicleColors = [
+            '#FF0000', '#00FF00', '#0000FF', '#FFFF00', 
+            '#FF00FF', '#00FFFF', '#FFA500', '#800080'
+        ];
+        
         function log(message, type = 'info') {
             const timestamp = new Date().toLocaleTimeString();
             const color = type === 'error' ? '#ff6b6b' : 
@@ -259,7 +302,6 @@
             logContainer.appendChild(logEntry);
             logContainer.scrollTop = logContainer.scrollHeight;
             
-           
             if (logContainer.children.length > 10) {
                 logContainer.removeChild(logContainer.firstChild);
             }
@@ -267,6 +309,85 @@
             console.log(`[${type}] ${message}`);
         }
         
+        function drawBoundingBoxes() {
+            if (!overlayCtx || detectedVehicles.length === 0) return;
+            
+            // پاک کردن canvas
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            
+            // تنظیمات رسم
+            overlayCtx.lineWidth = 3;
+            overlayCtx.font = 'bold 16px Arial';
+            overlayCtx.textBaseline = 'top';
+            
+            // رسم مربع‌های دور خودروها
+            detectedVehicles.forEach((vehicle, index) => {
+                const color = vehicleColors[index % vehicleColors.length];
+                
+                // رسم مستطیل
+                overlayCtx.strokeStyle = color;
+                overlayCtx.fillStyle = color + '20'; // رنگ با شفافیت
+                overlayCtx.strokeRect(vehicle.x, vehicle.y, vehicle.width, vehicle.height);
+                overlayCtx.fillRect(vehicle.x, vehicle.y, vehicle.width, vehicle.height);
+                
+                // رسم برچسب
+                overlayCtx.fillStyle = color;
+                const label = `خودرو ${index + 1}`;
+                const labelWidth = overlayCtx.measureText(label).width + 10;
+                const labelHeight = 25;
+                
+                // پس‌زمینه برچسب
+                overlayCtx.fillStyle = color;
+                overlayCtx.fillRect(
+                    vehicle.x, 
+                    vehicle.y - labelHeight, 
+                    Math.min(labelWidth, vehicle.width), 
+                    labelHeight
+                );
+                
+                // متن برچسب
+                overlayCtx.fillStyle = '#FFFFFF';
+                overlayCtx.fillText(label, vehicle.x + 5, vehicle.y - labelHeight + 5);
+                
+                // درصد اطمینان
+                if (vehicle.confidence) {
+                    overlayCtx.fillStyle = '#FFFFFF';
+                    overlayCtx.font = '12px Arial';
+                    const confidenceText = `${Math.round(vehicle.confidence * 100)}%`;
+                    overlayCtx.fillText(
+                        confidenceText, 
+                        vehicle.x + 5, 
+                        vehicle.y + 5
+                    );
+                }
+            });
+            
+            // به‌روزرسانی آمار تشخیص
+            updateDetectionStats();
+        }
+        
+        function updateDetectionStats() {
+            detectionStatsEl.innerHTML = '';
+            
+            detectedVehicles.forEach((vehicle, index) => {
+                const div = document.createElement('div');
+                div.className = 'detection-item';
+                div.innerHTML = `
+                    <div style="color: ${vehicleColors[index % vehicleColors.length]}; font-weight: bold">
+                        خودرو ${index + 1}
+                    </div>
+                    <div style="font-size: 0.8rem">
+                        موقعیت: (${Math.round(vehicle.x)}, ${Math.round(vehicle.y)})
+                    </div>
+                    ${vehicle.confidence ? 
+                        `<div style="font-size: 0.8rem">
+                            اطمینان: ${Math.round(vehicle.confidence * 100)}%
+                        </div>` : ''
+                    }
+                `;
+                detectionStatsEl.appendChild(div);
+            });
+        }
         
         function connectWebSocket() {
             log('در حال اتصال به سرور...', 'info');
@@ -301,7 +422,6 @@
                     isStreaming = false;
                     updateStreamButton();
                     
-                    
                     setTimeout(connectWebSocket, 3000);
                 };
                 
@@ -310,7 +430,6 @@
             }
         }
         
-        
         function handleServerMessage(data) {
             switch (data.type) {
                 case 'connection_established':
@@ -318,20 +437,40 @@
                     break;
                     
                 case 'detection_result':
-                    
                     vehicleCountEl.textContent = data.count;
                     
-                     
+                    // ذخیره اطلاعات خودروهای تشخیص داده شده
+                    if (data.vehicles && Array.isArray(data.vehicles)) {
+                        detectedVehicles = data.vehicles;
+                        
+                        // مقیاس‌دهی مختصات به اندازه واقعی ویدیو
+                        if (overlayCanvas) {
+                            const scaleX = overlayCanvas.width / data.original_width;
+                            const scaleY = overlayCanvas.height / data.original_height;
+                            
+                            detectedVehicles = detectedVehicles.map(vehicle => ({
+                                x: vehicle.x * scaleX,
+                                y: vehicle.y * scaleY,
+                                width: vehicle.width * scaleX,
+                                height: vehicle.height * scaleY,
+                                confidence: vehicle.confidence,
+                                class: vehicle.class
+                            }));
+                        }
+                        
+                        // رسم مربع‌ها
+                        drawBoundingBoxes();
+                        
+                        if (data.count > 0) {
+                            log(`🚗 ${data.count} خودرو تشخیص داده شد`, 'success');
+                        }
+                    }
+                    
                     if (data.timestamp) {
                         const now = new Date();
                         const serverTime = new Date(data.timestamp);
                         const latency = now - serverTime;
                         latencyEl.textContent = latency;
-                    }
-                    
-                      
-                    if (data.count > 0) {
-                        log(`🚗 ${data.count} خودرو تشخیص داده شد`, 'success');
                     }
                     break;
                     
@@ -348,7 +487,6 @@
             }
         }
         
-
         function updateConnectionStatus(connected) {
             if (connected) {
                 connectionStatusEl.textContent = '🟢 متصل به سرور';
@@ -359,34 +497,36 @@
             }
         }
         
-
         async function startCamera() {
             try {
                 log('درخواست دسترسی به دوربین...', 'info');
                 
-
                 const constraints = {
                     video: {
                         width: { ideal: 640 },
                         height: { ideal: 480 },
-                        facingMode: 'environment',  
+                        facingMode: 'environment',
                         frameRate: { ideal: 30 }
                     },
                     audio: false
                 };
                 
-               
                 mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
                 localVideo.srcObject = mediaStream;
-                
                 
                 localVideo.onloadedmetadata = () => {
                     processedCanvas.width = localVideo.videoWidth;
                     processedCanvas.height = localVideo.videoHeight;
+                    
+                    // تنظیم overlay canvas
+                    overlayCanvas = document.getElementById('overlayCanvas');
+                    overlayCanvas.width = localVideo.videoWidth;
+                    overlayCanvas.height = localVideo.videoHeight;
+                    overlayCtx = overlayCanvas.getContext('2d');
+                    
                     log(`📐 اندازه تصویر: ${localVideo.videoWidth}x${localVideo.videoHeight}`, 'success');
                 };
                 
-               
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
                 streamBtn.disabled = false;
@@ -399,22 +539,27 @@
             }
         }
         
-       
         function stopCamera() {
             if (mediaStream) {
                 mediaStream.getTracks().forEach(track => track.stop());
                 mediaStream = null;
                 localVideo.srcObject = null;
                 
-               
                 isStreaming = false;
                 stopFrameSending();
+                detectedVehicles = [];
                 
-               
                 vehicleCountEl.textContent = '0';
                 fpsCounterEl.textContent = '0';
                 latencyEl.textContent = '0';
                 
+                // پاک کردن overlay
+                if (overlayCtx) {
+                    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                }
+                
+                // پاک کردن آمار
+                detectionStatsEl.innerHTML = '';
                 
                 startBtn.disabled = false;
                 stopBtn.disabled = true;
@@ -423,7 +568,6 @@
                 log('دوربین متوقف شد', 'warning');
             }
         }
-        
         
         function toggleStream() {
             isStreaming = !isStreaming;
@@ -436,7 +580,6 @@
             }
         }
         
-       
         function updateStreamButton() {
             if (isStreaming) {
                 streamBtn.innerHTML = '⏸️ توقف ارسال';
@@ -449,7 +592,6 @@
             }
         }
         
-        
         function startFrameSending() {
             if (!websocket || websocket.readyState !== WebSocket.OPEN) {
                 log('❌ ابتدا به سرور متصل شوید', 'error');
@@ -457,7 +599,6 @@
                 updateStreamButton();
                 return;
             }
-            
             
             fpsTimer = setInterval(() => {
                 fpsCounterEl.textContent = frameCounter;
@@ -468,7 +609,6 @@
             sendFrame();
         }
         
-        
         function stopFrameSending() {
             if (fpsTimer) {
                 clearInterval(fpsTimer);
@@ -478,44 +618,44 @@
             log('⏹️ توقف ارسال فریم‌ها', 'warning');
         }
         
-        
         function sendFrame() {
             if (!isStreaming || !mediaStream || !websocket || websocket.readyState !== WebSocket.OPEN) {
                 return;
             }
             
             try {
-                
                 if (!localVideo.videoWidth || !localVideo.videoHeight) {
                     setTimeout(sendFrame, 100);
                     return;
                 }
                 
-                
                 if (processedCanvas.width !== localVideo.videoWidth || 
                     processedCanvas.height !== localVideo.videoHeight) {
                     processedCanvas.width = localVideo.videoWidth;
                     processedCanvas.height = localVideo.videoHeight;
+                    
+                    if (overlayCanvas) {
+                        overlayCanvas.width = localVideo.videoWidth;
+                        overlayCanvas.height = localVideo.videoHeight;
+                    }
                 }
-                
                 
                 ctx.drawImage(localVideo, 0, 0, processedCanvas.width, processedCanvas.height);
                 
-                
                 const frameData = processedCanvas.toDataURL('image/jpeg', 0.5);
                 
-                  
                 websocket.send(JSON.stringify({
                     type: 'video_frame',
                     frame: frameData,
                     timestamp: Date.now(),
+                    width: processedCanvas.width,
+                    height: processedCanvas.height,
                     annotate: true
                 }));
                 
                 frameCounter++;
                 
-                
-                setTimeout(sendFrame, 200); 
+                setTimeout(sendFrame, 200);
                 
             } catch (error) {
                 log(`❌ خطا در ارسال فریم: ${error}`, 'error');
@@ -524,7 +664,6 @@
                 stopFrameSending();
             }
         }
-        
         
         function pingServer() {
             if (websocket && websocket.readyState === WebSocket.OPEN) {
@@ -535,14 +674,11 @@
             }
         }
         
-        
         window.onload = function() {
             log('صفحه بارگذاری شد', 'info');
             connectWebSocket();
             
-            
             setInterval(pingServer, 10000);
-            
             
             window.addEventListener('beforeunload', () => {
                 if (mediaStream) {
