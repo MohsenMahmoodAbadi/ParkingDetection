@@ -229,8 +229,10 @@
         let frameCounter = 0;
         let fpsTimer = null;
         
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.hostname === '0.0.0.0' ? 'localhost' : window.location.hostname;   
+        const wsUrl = `${protocol}//${host}:${window.location.port || 8000}/ws/video/stream/`;
         
-        const wsUrl = '{{ ws_url }}';
         
         
         const localVideo = document.getElementById('localVideo');

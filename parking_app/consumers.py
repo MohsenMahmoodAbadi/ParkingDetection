@@ -2,6 +2,8 @@ import json
 import base64
 import cv2
 import numpy as np
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from channels.generic.websocket import AsyncWebsocketConsumer
 from ultralytics import YOLO
 from datetime import datetime
@@ -9,6 +11,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Thread pool برای عملیات سنگین
+executor = ThreadPoolExecutor(max_workers=4)
 
 try:
     model = YOLO('yolov8n.pt') 
@@ -34,11 +38,14 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
-            logger.info(f"📥 Received message type: {data.get('type')}")
             
             if data['type'] == 'video_frame':
-               
-                result = await self.process_frame(data)
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    executor, 
+                    self._process_frame_sync, 
+                    data
+                )
                 await self.send(text_data=json.dumps(result))
                 
             elif data['type'] == 'ping':
@@ -54,13 +61,12 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
                 'message': str(e)
             }))
     
-    async def process_frame(self, data):
-        """پردازش فریم و تشخیص خودروها"""
+    def _process_frame_sync(self, data):
+        """تابع sync برای پردازش فریم"""
         try:
-
             frame_data = data['frame']
             
-
+            # حذف prefix اگر وجود دارد
             if ',' in frame_data:
                 frame_data = frame_data.split(',')[1]
             
@@ -75,33 +81,34 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
                     'count': 0
                 }
             
-           
             results = []
             count_car = 0
             
             if model:
-                yolo_results = model(frame, conf=0.5, verbose=False)
+                # اجرای مدل YOLO
+                yolo_results = model(frame, conf=0.3, verbose=False)
                 
-               
                 for result in yolo_results:
                     boxes = result.boxes
-                    for box in boxes:
-                        class_id = int(box.cls[0])
-                        if class_id in [2, 5, 7]:  
-                            count_car += 1
-                            x1, y1, x2, y2 = box.xyxy[0].tolist()
-                            confidence = float(box.conf[0])
-                            
-                            results.append({
-                                'class_id': class_id,
-                                'confidence': confidence,
-                                'bbox': [int(x1), int(y1), int(x2), int(y2)]
-                            })
+                    if boxes is not None:
+                        for box in boxes:
+                            class_id = int(box.cls[0])
+                            if class_id in [2, 5, 7]:  # خودروها
+                                count_car += 1
+                                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                                confidence = float(box.conf[0])
+                                
+                                results.append({
+                                    'class_id': class_id,
+                                    'confidence': round(confidence, 2),
+                                    'bbox': [int(x1), int(y1), int(x2), int(y2)]
+                                })
                 
-
-                if data.get('annotate', False):
+                # اگر درخواست آنوتیشن دارد
+                if data.get('annotate', False) and len(yolo_results) > 0:
                     annotated_frame = yolo_results[0].plot()
-                    _, buffer = cv2.imencode('.jpg', annotated_frame)
+                    _, buffer = cv2.imencode('.jpg', annotated_frame, 
+                                            [cv2.IMWRITE_JPEG_QUALITY, 70])
                     frame_base64 = base64.b64encode(buffer).decode('utf-8')
                 else:
                     frame_base64 = None
@@ -118,7 +125,7 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
             }
             
         except Exception as e:
-            logger.error(f"❌ Error in process_frame: {e}")
+            logger.error(f"❌ Error in _process_frame_sync: {e}")
             return {
                 'type': 'error',
                 'message': str(e),
