@@ -231,9 +231,9 @@
             <canvas id="processedCanvas" style="display: none;"></canvas>
         </div>
         
-        <div class="detection-stats" id="detectionStats">
-            <!-- آمار تشخیص به صورت داینامیک ساخته می‌شود -->
-        </div>
+        <!-- <div class="detection-stats" id="detectionStats">
+             آمار تشخیص به صورت داینامیک ساخته می‌شود 
+        </div> -->
         
         <div class="controls">
             <button class="btn btn-primary" onclick="startCamera()" id="startBtn">
@@ -251,7 +251,7 @@
         </div>
         
         <div class="connection-status disconnected" id="connectionStatus">
-            🔴 در حال اتصال به سرور...
+             در حال اتصال به سرور...
         </div>
         
         <div class="log" id="logContainer">
@@ -363,31 +363,31 @@
             });
             
             // به‌روزرسانی آمار تشخیص
-            updateDetectionStats();
+            // updateDetectionStats();
         }
         
-        function updateDetectionStats() {
-            detectionStatsEl.innerHTML = '';
+        // function updateDetectionStats() {
+        //     detectionStatsEl.innerHTML = '';
             
-            detectedVehicles.forEach((vehicle, index) => {
-                const div = document.createElement('div');
-                div.className = 'detection-item';
-                div.innerHTML = `
-                    <div style="color: ${vehicleColors[index % vehicleColors.length]}; font-weight: bold">
-                        خودرو ${index + 1}
-                    </div>
-                    <div style="font-size: 0.8rem">
-                        موقعیت: (${Math.round(vehicle.x)}, ${Math.round(vehicle.y)})
-                    </div>
-                    ${vehicle.confidence ? 
-                        `<div style="font-size: 0.8rem">
-                            اطمینان: ${Math.round(vehicle.confidence * 100)}%
-                        </div>` : ''
-                    }
-                `;
-                detectionStatsEl.appendChild(div);
-            });
-        }
+        //     detectedVehicles.forEach((vehicle, index) => {
+        //         const div = document.createElement('div');
+        //         div.className = 'detection-item';
+        //         div.innerHTML = `
+        //             <div style="color: ${vehicleColors[index % vehicleColors.length]}; font-weight: bold">
+        //                 خودرو ${index + 1}
+        //             </div>
+        //             <div style="font-size: 0.8rem">
+        //                 موقعیت: (${Math.round(vehicle.x)}, ${Math.round(vehicle.y)})
+        //             </div>
+        //             ${vehicle.confidence ? 
+        //                 `<div style="font-size: 0.8rem">
+        //                     اطمینان: ${Math.round(vehicle.confidence * 100)}%
+        //                 </div>` : ''
+        //             }
+        //         `;
+        //         detectionStatsEl.appendChild(div);
+        //     });
+        // }
         
         function connectWebSocket() {
             log('در حال اتصال به سرور...', 'info');
@@ -396,7 +396,7 @@
                 websocket = new WebSocket(wsUrl);
                 
                 websocket.onopen = function() {
-                    log('✅ متصل به سرور', 'success');
+                    log(' متصل به سرور', 'success');
                     updateConnectionStatus(true);
                     streamBtn.disabled = false;
                 };
@@ -406,17 +406,17 @@
                         const data = JSON.parse(event.data);
                         handleServerMessage(data);
                     } catch (e) {
-                        log(`❌ خطا در پردازش پیام: ${e}`, 'error');
+                        log(` خطا در پردازش پیام: ${e}`, 'error');
                     }
                 };
                 
                 websocket.onerror = function(error) {
-                    log(`❌ خطای اتصال: ${error}`, 'error');
+                    log(` خطای اتصال: ${error}`, 'error');
                     updateConnectionStatus(false);
                 };
                 
                 websocket.onclose = function() {
-                    log('🔌 اتصال قطع شد', 'warning');
+                    log('اتصال قطع شد', 'warning');
                     updateConnectionStatus(false);
                     streamBtn.disabled = true;
                     isStreaming = false;
@@ -426,7 +426,7 @@
                 };
                 
             } catch (error) {
-                log(`❌ خطا در ایجاد اتصال: ${error}`, 'error');
+                log(` خطا در ایجاد اتصال: ${error}`, 'error');
             }
         }
         
@@ -462,7 +462,7 @@
                         drawBoundingBoxes();
                         
                         if (data.count > 0) {
-                            log(`🚗 ${data.count} خودرو تشخیص داده شد`, 'success');
+                            log(` ${data.count} خودرو تشخیص داده شد`, 'success');
                         }
                     }
                     
@@ -475,24 +475,24 @@
                     break;
                     
                 case 'error':
-                    log(`❌ خطای سرور: ${data.message}`, 'error');
+                    log(` خطای سرور: ${data.message}`, 'error');
                     break;
                     
                 case 'pong':
-                    log('🏓 سرور پاسخ داد', 'info');
+                    log(' سرور پاسخ داد', 'info');
                     break;
                     
                 default:
-                    log(`📨 پیام ناشناخته: ${data.type}`, 'warning');
+                    log(` پیام ناشناخته: ${data.type}`, 'warning');
             }
         }
         
         function updateConnectionStatus(connected) {
             if (connected) {
-                connectionStatusEl.textContent = '🟢 متصل به سرور';
+                connectionStatusEl.textContent = ' متصل به سرور';
                 connectionStatusEl.className = 'connection-status connected';
             } else {
-                connectionStatusEl.textContent = '🔴 قطع از سرور';
+                connectionStatusEl.textContent = ' قطع از سرور';
                 connectionStatusEl.className = 'connection-status disconnected';
             }
         }
@@ -531,10 +531,10 @@
                 stopBtn.disabled = false;
                 streamBtn.disabled = false;
                 
-                log('✅ دوربین فعال شد', 'success');
+                log(' دوربین فعال شد', 'success');
                 
             } catch (error) {
-                log(`❌ خطای دوربین: ${error.message}`, 'error');
+                log(` خطای دوربین: ${error.message}`, 'error');
                 alert('خطا در دسترسی به دوربین:\n' + error.message);
             }
         }
@@ -594,7 +594,7 @@
         
         function startFrameSending() {
             if (!websocket || websocket.readyState !== WebSocket.OPEN) {
-                log('❌ ابتدا به سرور متصل شوید', 'error');
+                log(' ابتدا به سرور متصل شوید', 'error');
                 isStreaming = false;
                 updateStreamButton();
                 return;
@@ -658,7 +658,7 @@
                 setTimeout(sendFrame, 200);
                 
             } catch (error) {
-                log(`❌ خطا در ارسال فریم: ${error}`, 'error');
+                log(` خطا در ارسال فریم: ${error}`, 'error');
                 isStreaming = false;
                 updateStreamButton();
                 stopFrameSending();

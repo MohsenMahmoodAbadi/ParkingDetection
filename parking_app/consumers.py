@@ -169,7 +169,7 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
             }
             
         except Exception as e:
-            logger.error(f"❌ Error in _process_frame_sync: {e}")
+            logger.error(f" Error in _process_frame_sync: {e}")
             return {
                 'type': 'error',
                 'message': str(e),
