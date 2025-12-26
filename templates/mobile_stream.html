@@ -270,7 +270,7 @@
         
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.hostname === '0.0.0.0' ? 'localhost' : window.location.hostname;   
-        const wsUrl = `${protocol}//${host}:8000/ws/video/stream/`;
+        const wsUrl = `${protocol}//${host}/ws/video/stream/`;
         
         const localVideo = document.getElementById('localVideo');
         const processedCanvas = document.getElementById('processedCanvas');
